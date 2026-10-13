@@ -5,8 +5,8 @@ namespace App\Console\Commands;
 use App\Models\Procedure;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\File;
-use Illuminate\Support\Facades\Http;
 use Spatie\YamlFrontMatter\YamlFrontMatter;
+use App\Services\Ollama;
 
 class IndexProcedures extends Command
 {
@@ -14,7 +14,7 @@ class IndexProcedures extends Command
 
     protected $description = 'Indexe les fiches d aides du dossier corpus dans pgvector';
 
-    public function handle(): int
+    public function handle(Ollama $ollama): int
     {
         // 1. Lire les fiches d'aide au procédure (file en .md)
         $fichiers = File::glob(base_path('../corpus/*.md'));
@@ -41,11 +41,7 @@ class IndexProcedures extends Command
         // 2. Calculer tous les vecteurs en un seul appel à Ollama model bg-m3
         $textes = array_map(fn (array $f) => $this->texteIndexe($f), $fiches);
 
-        $vecteurs = Http::timeout(120)
-            ->post(config('services.ollama.url').'/api/embed', [
-                'model' => config('services.ollama.embed_model'),
-                'input' => $textes,
-            ])->throw()->json('embeddings');
+        $vecteurs = $ollama->embed($textes);
 
         // 3. Enregistrement consistant à mettre à jour si le code existe déjà, sinon il est créer
         foreach ($fiches as $i => $f) {
